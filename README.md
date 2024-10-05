@@ -17,7 +17,17 @@ Novel writing assist tool
 - 小説の生成は行わない
 
 # 実装方針
+## ベクトル化
 - 小説ファイルを読み込む
 - 章ごとに分割されている小説ファイルをまず前処理し、そしてベクトル化してChromaDBに格納する
     - テキストをNFKC形式で正規化
-- 小説ファイルをチェック (LangChainによるRAG)
+
+## ベクトル化したものに対してチャット
+- ユーザーの質問に対して、LangChainによるRAG(ベクトル化したものを検索したり、実ファイルを参照したり)して回答を生成する
+
+# 実行方法
+```
+npm run build
+npm run vectorize -- /path/to/directory
+npm run chat -- /path/to/directory
+```

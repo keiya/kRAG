@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "ts-node src/main.ts"
+    "start": "ts-node src/main.ts",
+    "vectorize": "ts-node src/main.ts -- -v",
+    "chat": "ts-node src/main.ts -- -c",
+    "build": "tsc"
   },
   "author": "",
   "license": "ISC",
@@ -16,6 +19,7 @@
     "@types/node": "^22.7.4",
     "chromadb": "^1.9.2",
     "chromadb-default-embed": "^2.13.2",
+    "commander": "^12.1.0",
     "dotenv": "^16.4.5",
     "langchain": "^0.3.2",
     "ts-node": "^10.9.2",
