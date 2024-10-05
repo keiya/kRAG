@@ -22,29 +22,39 @@ async function cleanupChromaDB() {
 }
 
 export async function vectorizeNovelChapters(directoryPath: string) {
-  // クリーンアップを実行
   await cleanupChromaDB();
 
-  let allText = await readTextFiles(directoryPath);
+  const fileContents = await readTextFiles(directoryPath);
 
-  allText = removeUnwantedCharacters(allText);
+  const documents: Document[] = [];
 
-  const sentences = splitTextIntoSentences(allText);
+  for (const { content, filename } of fileContents) {
+    const cleanedText = removeUnwantedCharacters(content);
+    const sentences = splitTextIntoSentences(cleanedText);
+    const chunkSize = 1000;
+    const chunks = createChunks(sentences, chunkSize);
 
-  const chunkSize = 1000;
-  const chunks = createChunks(sentences, chunkSize);
-
-  const documents = chunks.map(chunk => new Document({ pageContent: chunk }));
+    chunks.forEach((chunk, index) => {
+      documents.push(
+        new Document({
+          pageContent: chunk,
+          metadata: {
+            filename: filename,
+            chunkIndex: index
+          }
+        })
+      );
+    });
+  }
 
   const embeddings = new OpenAIEmbeddings(
     {
       verbose: true,
       openAIApiKey: process.env.OPENAI_API_KEY,
-      model: "text-embedding-3-large", // Use the desired model
+      model: "text-embedding-3-large",
     }
   );
 
-  // ChromaClientを使用して新しいコレクションを作成
   const client = new ChromaClient({
     path: CHROMA_URL,
   });

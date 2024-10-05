@@ -44,7 +44,7 @@ export async function chatWithNovel(directoryPath: string) {
 
   console.log("Initializing ChatOpenAI model...");
   const model = new ChatOpenAI({
-    modelName: "gpt-4",
+    modelName: "gpt-4o",
     openAIApiKey: process.env.OPENAI_API_KEY,
     streaming: true, // ストリーミングを有効化
   });
@@ -56,7 +56,8 @@ export async function chatWithNovel(directoryPath: string) {
   const prompt = ChatPromptTemplate.fromTemplate(`
     You are a specialized assistant for novelists, focusing on ensuring narrative coherence and character consistency. Response in 日本語.
 
-    When interacting with the user, consider the following context and chat history to provide insightful feedback and suggestions:
+    When interacting with the user, consider the following context and chat history to provide insightful feedback and suggestions.
+    Context is arranged in the order of appearance in the novel. It is important to consider the relationships and foreshadowing before and after:
     Context: {context}
     Chat History: {chat_history}
 
@@ -69,8 +70,28 @@ export async function chatWithNovel(directoryPath: string) {
       input: (input: string) => input,
       chat_history: async () => await memory.loadMemoryVariables({}).then(vars => vars.history),
       context: async (input: string) => {
-        const results = await vectorStore.similaritySearch(input, 1);
-        return results.map(doc => doc.pageContent).join("\n");
+        const results = await vectorStore.similaritySearchWithScore(input, 10);
+        
+        // ファイル名とチャンクインデックスでソート
+        results.sort((a, b) => {
+          const aMetadata = a[0].metadata;
+          const bMetadata = b[0].metadata;
+          if (aMetadata.filename !== bMetadata.filename) {
+            return aMetadata.filename.localeCompare(bMetadata.filename);
+          }
+          return aMetadata.chunkIndex - bMetadata.chunkIndex;
+        });
+
+        // デバッグ用のメタデータと類似度スコアの出力（ソート後）
+        results.forEach(([doc, score], index) => {
+          console.log(`Debug - Document ${index + 1}:`);
+          console.log(`  Content: ${doc.pageContent.substring(0, 50)}...`);
+          console.log(`  Metadata:`, doc.metadata);
+          console.log(`  Similarity Score: ${score}`);
+        });
+
+        // ソートされた結果からコンテキストを生成
+        return results.map(([doc, _]) => doc.pageContent).join("\n");
       },
     },
     prompt,
