@@ -27,7 +27,11 @@ Novel writing assist tool
 
 # 実行方法
 ```
-npm run build
+# ChromaDBを起動
+docker compose up
+```
+
+```
 npm run vectorize -- /path/to/directory
 npm run chat -- /path/to/directory
 ```
