@@ -1,11 +1,12 @@
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { Chroma } from "@langchain/community/vectorstores/chroma";
 import { ChatOpenAI } from "@langchain/openai";
-import { createRetrievalChain } from "langchain/chains/retrieval";
-import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import * as readline from 'readline';
 import { ChromaClient } from 'chromadb';
+import { BufferMemory } from "langchain/memory";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { StringOutputParser } from "@langchain/core/output_parsers";
 
 const COLLECTION_NAME = "novel_chapters";
 const CHROMA_URL = "http://localhost:8000";
@@ -43,27 +44,39 @@ export async function chatWithNovel(directoryPath: string) {
 
   console.log("Initializing ChatOpenAI model...");
   const model = new ChatOpenAI({
-    modelName: "gpt-4o",
+    modelName: "gpt-4",
     openAIApiKey: process.env.OPENAI_API_KEY,
+    streaming: true, // ストリーミングを有効化
   });
+
+  console.log("Initializing memory...");
+  const memory = new BufferMemory();
 
   console.log("Creating retrieval chain...");
   const prompt = ChatPromptTemplate.fromTemplate(`
-    Answer the question based on the following context:
-    {context}
+    You are a specialized assistant for novelists, focusing on ensuring narrative coherence and character consistency. Response in 日本語.
 
-    Question: {input}
+    When interacting with the user, consider the following context and chat history to provide insightful feedback and suggestions:
+    Context: {context}
+    Chat History: {chat_history}
+
+    Human: {input}
+    Assistant: 
   `);
 
-  const combineDocsChain = await createStuffDocumentsChain({
-    llm: model,
+  const chain = RunnableSequence.from([
+    {
+      input: (input: string) => input,
+      chat_history: async () => await memory.loadMemoryVariables({}).then(vars => vars.history),
+      context: async (input: string) => {
+        const results = await vectorStore.similaritySearch(input, 1);
+        return results.map(doc => doc.pageContent).join("\n");
+      },
+    },
     prompt,
-  });
-
-  const chain = await createRetrievalChain({
-    combineDocsChain,
-    retriever: vectorStore.asRetriever(),
-  });
+    model,
+    new StringOutputParser(),
+  ]);
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -80,9 +93,21 @@ export async function chatWithNovel(directoryPath: string) {
       }
 
       try {
-        console.log("Querying the chain...");
-        const response = await chain.invoke({ input });
-        console.log("AI:", response.answer);
+        console.log("AI: ");
+        const stream = await chain.stream(input);
+        let fullResponse = "";
+
+        for await (const chunk of stream) {
+          process.stdout.write(chunk);
+          fullResponse += chunk;
+        }
+        console.log("\n");
+
+        // Store the interaction in memory
+        await memory.saveContext(
+          { input: input },
+          { output: fullResponse }
+        );
       } catch (error) {
         console.error("Error during query:", error);
       }
