@@ -56,7 +56,7 @@ export async function chatWithNovel(directoryPath: string) {
   const prompt = ChatPromptTemplate.fromTemplate(`
     You are a specialized assistant for novelists, focusing on ensuring narrative coherence and character consistency. Response in 日本語.
 
-    When interacting with the user, consider the following context and chat history to provide insightful feedback and suggestions.
+    When interacting with the user, consider the following context and chat history to provide insightful feedback and suggestions. Context includes the content or summary of the novel.
     Context is arranged in the order of appearance in the novel. It is important to consider the relationships and foreshadowing before and after:
     Context: {context}
     Chat History: {chat_history}
@@ -90,8 +90,12 @@ export async function chatWithNovel(directoryPath: string) {
           console.log(`  Similarity Score: ${score}`);
         });
 
-        // ソートされた結果からコンテキストを生成
-        return results.map(([doc, _]) => doc.pageContent).join("\n");
+        // ソートされた結果からコンテキストを生成（タイプ情報を含む）
+        return results.map(([doc, _]) => {
+          const type = doc.metadata.type;
+          const content = doc.pageContent;
+          return `[${type.toUpperCase()}]\n${content}\n`;
+        }).join("\n");
       },
     },
     prompt,
